@@ -1,13 +1,17 @@
-.. _pytorch_setup:
+.. _jax_setup:
 
-PyTorch Setup
-=============
+Jax Setup
+=========
 
 **Prerequisites**: (Make sure to read the following before using this example!)
 
 * :ref:`Quick Start`
 * :ref:`Running your code`
 * :ref:`Conda`
+
+The full source code for this example is available on `the mila-docs GitHub
+repository.
+<https://github.com/mila-iqia/mila-docs/tree/master/docs/examples/frameworks/jax_setup>`_
 
 
 **job.sh**
@@ -33,15 +37,33 @@ PyTorch Setup
    module load anaconda/3
 
    # Creating the environment for the first time:
-   # conda create -y -n pytorch python=3.9 pytorch torchvision torchaudio \
-   #     pytorch-cuda=11.6 -c pytorch -c nvidia
-   # Other conda packages:
-   # conda install -y -n pytorch -c conda-forge rich
+   # Jax comes with precompiled binaries targetting a specific version of CUDA. In
+   # case you encounter an error like the following:
+   #
+   # The NVIDIA driver's CUDA version is 11.7 which is older than the ptxas CUDA
+   # version (11.8.89). Because the driver is older than the ptxas version, XLA
+   # is disabling parallel compilation, which may slow down compilation. You
+   # should update your NVIDIA driver or use the NVIDIA-provided CUDA forward
+   # compatibility packages.
+   #
+   # Try installing the specified version of CUDA in conda :
+   # https://anaconda.org/nvidia/cuda. E.g. "nvidia/label/cuda-11.8.0" if ptxas
+   # CUDA version is 11.8.XX
+   #
+   # conda create -y -n jax -c "nvidia/label/cuda-11.8.0" cuda python=3.9 virtualenv pip
+   # conda activate jax
+   # virtualenv ~/jax
+   # source ~/jax/bin/activate
+   # pip install pip install --upgrade "jax[cuda11_pip]" \
+   #    -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html \
+   #    pillow optax rich torch torchvision flax tqdm
 
    # Activate the environment:
-   conda activate pytorch
+   conda activate jax
+   source ~/jax/bin/activate
 
-   # Fixes issues with MIG-ed GPUs with versions of PyTorch < 2.0
+
+   # Fixes issues with MIG-ed GPUs
    unset CUDA_VISIBLE_DEVICES
 
    python main.py
@@ -52,23 +74,20 @@ PyTorch Setup
 
 .. code:: python
 
-   import torch
-   import torch.backends.cuda
+   import jax
+   from jax.lib import xla_bridge
 
 
    def main():
-       cuda_built = torch.backends.cuda.is_built()
-       cuda_avail = torch.cuda.is_available()
-       device_count = torch.cuda.device_count()
+       device_count = len(jax.local_devices(backend="gpu"))
+       print(f"Jax default backend:         {xla_bridge.get_backend().platform}")
+       print(f"Jax-detected #GPUs:          {device_count}")
 
-       print(f"PyTorch built with CUDA:         {cuda_built}")
-       print(f"PyTorch detects CUDA available:  {cuda_avail}")
-       print(f"PyTorch-detected #GPUs:          {device_count}")
        if device_count == 0:
            print("    No GPU detected, not printing devices' names.")
        else:
            for i in range(device_count):
-               print(f"    GPU {i}:      {torch.cuda.get_device_name(i)}")
+               print(f"    GPU {i}:      {jax.local_devices(backend='gpu')[0].device_kind}")
 
 
    if __name__ == "__main__":
@@ -77,7 +96,7 @@ PyTorch Setup
 
 **Running this example**
 
-This assumes that you already created a conda environment named "pytorch". To
+This assumes that you already created a conda environment named "jax". To
 create this environment, we first request resources for an interactive job.
 Note that we are requesting a GPU for this job, even though we're only going to
 install packages. This is because we want PyTorch to be installed with GPU
